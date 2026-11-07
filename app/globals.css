@@ -247,6 +247,7 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 500; }
 .code-header { height: 36px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; color: #888492; background: #18181e; border-bottom: 1px solid #292830; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .code-header button { display: flex; align-items: center; gap: 5px; padding: 4px; color: #aaa5b5; font-size: 9px; text-transform: none; }
 .code-block pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important; }
+.code-loading { padding: 20px; color: #888492; font-size: 11px; }
 .markdown table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
 .markdown th, .markdown td { padding: 9px 11px; border: 1px solid var(--border); text-align: left; }
 .markdown th { color: var(--text); background: var(--surface-2); }

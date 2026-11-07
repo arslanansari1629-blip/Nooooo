@@ -1,9 +1,13 @@
-import { getNvidiaCatalog } from '@/lib/nvidia-catalog';
-
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const FAST_AUTO_MODELS = [
+  'google/gemma-4-31b-it',
+  'google/gemma-3-4b-it',
+  'deepseek-ai/deepseek-v4.1-flash',
+  'moonshotai/kimi-k2.6',
+];
 const STYLE_PROMPTS = {
   balanced: 'Be clear, thoughtful, and conversational. Match the depth to the question.',
   precise: 'Be concise and precise. Lead with the answer, avoid filler, and use structure only when useful.',
@@ -22,7 +26,7 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+  const messages = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
   const requestedModel = typeof body.model === 'string' ? body.model : 'auto';
   const style = STYLE_PROMPTS[body.style] ? body.style : 'balanced';
 
@@ -37,9 +41,8 @@ export async function POST(request) {
     return Response.json({ error: 'Please choose a valid model.' }, { status: 400 });
   }
 
-  const candidates = requestedModel === 'auto'
-    ? (await getNvidiaCatalog()).slice(0, 6)
-    : [requestedModel];
+  // Start the verified model immediately—no catalog round-trip on the response path.
+  const candidates = requestedModel === 'auto' ? FAST_AUTO_MODELS : [requestedModel];
 
   const payload = (model) => JSON.stringify({
     model,
@@ -52,7 +55,7 @@ export async function POST(request) {
     ],
     temperature: style === 'creative' ? 0.85 : style === 'precise' ? 0.2 : 0.6,
     top_p: 0.9,
-    max_tokens: style === 'precise' ? 1536 : 3072,
+    max_tokens: style === 'precise' ? 1024 : 2048,
     stream: true,
   });
 
