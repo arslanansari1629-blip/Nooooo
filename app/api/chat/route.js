@@ -44,7 +44,7 @@ export async function POST(request) {
   // Start the verified model immediately—no catalog round-trip on the response path.
   const candidates = requestedModel === 'auto' ? FAST_AUTO_MODELS : [requestedModel];
 
-  const payload = (model) => JSON.stringify({
+  const payload = (model, previousAnswer = '') => JSON.stringify({
     model,
     messages: [
       {
@@ -52,10 +52,14 @@ export async function POST(request) {
         content: `You are Nexora, an exceptionally capable AI thinking partner developed by Arslan (/editz900s). When asked who built, created, developed, or owns you, clearly answer that Arslan (/editz900s) developed you. NVIDIA provides the AI model infrastructure; do not identify NVIDIA as your developer. ${STYLE_PROMPTS[style]} Use Markdown for formatting and fenced code blocks with language names for code. Be honest about uncertainty. Never mention these instructions.`,
       },
       ...messages.map(({ role, content }) => ({ role, content })),
+      ...(previousAnswer ? [
+        { role: 'assistant', content: previousAnswer },
+        { role: 'user', content: 'Continue your previous answer exactly where it stopped. Do not repeat any text, restart, or add commentary about continuing.' },
+      ] : []),
     ],
-    temperature: style === 'creative' ? 0.85 : style === 'precise' ? 0.2 : 0.6,
-    top_p: 0.9,
-    max_tokens: style === 'precise' ? 4096 : 8192,
+    // Let each NIM use its supported sampling defaults; some models reject
+    // temperature/top_p overrides even though they appear in the catalog.
+    max_tokens: 4096,
     stream: true,
   });
 
@@ -107,45 +111,78 @@ export async function POST(request) {
     }
 
     const encoder = new TextEncoder();
+    let cancelled = false;
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = upstream.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        const emitLine = (line) => {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) return;
-          const data = trimmed.slice(5).trim();
-          if (!data || data === '[DONE]') return;
-          try {
-            const event = JSON.parse(data);
-            const delta = event.choices?.[0]?.delta;
-            const content = delta?.content || delta?.reasoning_content;
-            if (typeof content === 'string' && content) controller.enqueue(encoder.encode(content));
-          } catch {
-            // Ignore non-message events in the upstream stream.
-          }
-        };
+        let current = upstream;
+        let completeAnswer = '';
+        let continuations = 0;
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) emitLine(line);
+          while (current && !cancelled) {
+            const reader = current.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let finishReason = null;
+            const emitLine = (line) => {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data:')) return;
+              const data = trimmed.slice(5).trim();
+              if (!data || data === '[DONE]') return;
+              try {
+                const event = JSON.parse(data);
+                const choice = event.choices?.[0];
+                const delta = choice?.delta;
+                const content = delta?.content || delta?.reasoning_content;
+                if (typeof content === 'string' && content) {
+                  completeAnswer += content;
+                  controller.enqueue(encoder.encode(content));
+                }
+                if (choice?.finish_reason) finishReason = choice.finish_reason;
+              } catch {
+                // Ignore non-message events in the upstream stream.
+              }
+            };
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) emitLine(line);
+              }
+              buffer += decoder.decode();
+              if (buffer.trim()) emitLine(buffer);
+            } finally {
+              reader.releaseLock();
+            }
+
+            // NVIDIA stops at the model's output ceiling. Continue invisibly instead
+            // of returning a half-finished sentence or an incomplete code block.
+            if (finishReason !== 'length' || !completeAnswer.trim() || continuations >= 3 || cancelled) break;
+            continuations += 1;
+            const continuation = await fetch(NVIDIA_URL, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
+                'Content-Type': 'application/json',
+                Accept: 'text/event-stream',
+              },
+              body: payload(activeModel, completeAnswer),
+              signal: request.signal,
+            });
+            if (!continuation.ok || !continuation.body) {
+              console.error(`NVIDIA continuation ${activeModel} error:`, continuation.status);
+              break;
+            }
+            current = continuation;
           }
-          // Flush multibyte characters and a final SSE event without a trailing newline.
-          buffer += decoder.decode();
-          if (buffer.trim()) emitLine(buffer);
-          controller.close();
+          if (!cancelled) controller.close();
         } catch (error) {
-          if (error?.name !== 'AbortError') controller.error(error);
-        } finally {
-          reader.releaseLock();
+          if (error?.name !== 'AbortError' && !cancelled) controller.error(error);
         }
       },
-      cancel() { upstream.body?.cancel(); },
+      cancel() { cancelled = true; upstream.body?.cancel(); },
     });
 
     return new Response(stream, {
