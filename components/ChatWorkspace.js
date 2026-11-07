@@ -113,7 +113,10 @@ export default function ChatWorkspace() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem('nexora-conversations', JSON.stringify(conversations));
+    const saveTimer = setTimeout(() => {
+      localStorage.setItem('nexora-conversations', JSON.stringify(conversations));
+    }, 350);
+    return () => clearTimeout(saveTimer);
   }, [conversations, hydrated]);
 
   useEffect(() => {
@@ -144,7 +147,11 @@ export default function ChatWorkspace() {
   }, [input]);
 
   useEffect(() => {
-    if (messages.length) endRef.current?.scrollIntoView({ behavior: generating ? 'auto' : 'smooth', block: 'end' });
+    if (!messages.length) return;
+    const scrollTimer = setTimeout(() => {
+      endRef.current?.scrollIntoView({ behavior: generating ? 'auto' : 'smooth', block: 'end' });
+    }, generating ? 100 : 0);
+    return () => clearTimeout(scrollTimer);
   }, [messages, generating]);
 
   const newChat = useCallback(() => {
