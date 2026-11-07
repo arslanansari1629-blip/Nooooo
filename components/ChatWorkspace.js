@@ -10,6 +10,7 @@ import {
   Sun, Moon, Monitor, Command, CornerDownLeft, ShieldCheck, CircleUserRound,
 } from 'lucide-react';
 import { AUTO_MODEL, FALLBACK_MODELS, friendlyModelName, toModelInfo } from '@/lib/models';
+import OpeningIntro from './OpeningIntro';
 
 const Markdown = dynamic(() => import('./Markdown'), { ssr: false });
 
@@ -51,6 +52,7 @@ function IconButton({ label, children, className = '', ...props }) {
 }
 
 export default function ChatWorkspace() {
+  const [showIntro, setShowIntro] = useState(true);
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -88,6 +90,17 @@ export default function ChatWorkspace() {
     clearTimeout(toastTimer.current);
     setToast({ message, type });
     toastTimer.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('nexora-intro-seen') || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setShowIntro(false);
+    }
+  }, []);
+
+  const completeIntro = useCallback(() => {
+    sessionStorage.setItem('nexora-intro-seen', '1');
+    setShowIntro(false);
   }, []);
 
   useEffect(() => {
@@ -407,6 +420,7 @@ export default function ChatWorkspace() {
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
+      {showIntro && <OpeningIntro onComplete={completeIntro} />}
       {sidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-top">
