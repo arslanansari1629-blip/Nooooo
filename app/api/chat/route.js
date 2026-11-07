@@ -2,11 +2,11 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+// Each candidate has passed a real NVIDIA inference check on this account.
 const FAST_AUTO_MODELS = [
   'google/gemma-4-31b-it',
-  'google/gemma-3-4b-it',
-  'deepseek-ai/deepseek-v4.1-flash',
-  'moonshotai/kimi-k2.6',
+  'minimaxai/minimax-m3.1-flash',
+  'stepfun-ai/step-5-preview',
 ];
 const STYLE_PROMPTS = {
   balanced: 'Be clear, thoughtful, and conversational. Match the depth to the question.',
@@ -106,7 +106,9 @@ export async function POST(request) {
           ? 'The free models are busy right now. Please try again in a moment.'
           : lastStatus === 504
             ? 'The model took too long to respond. Please try again or choose another model.'
-            : 'No compatible free model is available right now. Please try another model.';
+            : [404, 410].includes(lastStatus)
+              ? 'NVIDIA has not enabled this model for your account, or it has been retired. Choose Auto or another available model.'
+              : 'This model rejected the chat request. Choose Auto or try another model.';
       return Response.json({ error: message }, { status: lastStatus === 429 ? 429 : 502 });
     }
 
