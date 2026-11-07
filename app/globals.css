@@ -221,6 +221,7 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 500; }
 .message-actions .icon-button { width: 27px; height: 26px; }
 .message-actions .selected { color: var(--accent); }
 .action-divider { width: 1px; height: 12px; background: var(--border); margin: 0 4px; }
+.interrupted-note { margin-right: 6px; color: var(--danger); font-size: 9px; }
 .typing-indicator { display: flex; gap: 5px; padding: 8px 0; }
 .typing-indicator i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: typing 1.2s infinite; }
 .typing-indicator i:nth-child(2) { animation-delay: .15s; }

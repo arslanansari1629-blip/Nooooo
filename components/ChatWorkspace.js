@@ -261,7 +261,9 @@ export default function ChatWorkspace() {
         updateConversation(conversationId, (chat) => ({
           ...chat,
           messages: chat.messages.map((message) => message.id === assistantId
-            ? { ...message, content: error.message, isError: true }
+            ? received.trim()
+              ? { ...message, content: received, interrupted: true }
+              : { ...message, content: error.message, isError: true }
             : message),
         }));
       }
@@ -507,6 +509,7 @@ export default function ChatWorkspace() {
                       )}
                       {message.role === 'assistant' && message.content && !message.isError && (
                         <div className="message-actions">
+                          {message.interrupted && <span className="interrupted-note">Response interrupted · regenerate to retry</span>}
                           <IconButton label="Copy response" onClick={() => copyText(message.content)}><Copy size={14} /></IconButton>
                           <IconButton label="Regenerate response" disabled={generating} onClick={() => regenerate(message.id)}><History size={14} /></IconButton>
                           <span className="action-divider" />

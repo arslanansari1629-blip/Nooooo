@@ -1,5 +1,5 @@
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const FAST_AUTO_MODELS = [
@@ -26,7 +26,7 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
+  const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
   const requestedModel = typeof body.model === 'string' ? body.model : 'auto';
   const style = STYLE_PROMPTS[body.style] ? body.style : 'balanced';
 
@@ -55,7 +55,7 @@ export async function POST(request) {
     ],
     temperature: style === 'creative' ? 0.85 : style === 'precise' ? 0.2 : 0.6,
     top_p: 0.9,
-    max_tokens: style === 'precise' ? 1024 : 2048,
+    max_tokens: style === 'precise' ? 4096 : 8192,
     stream: true,
   });
 
@@ -112,6 +112,20 @@ export async function POST(request) {
         const reader = upstream.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        const emitLine = (line) => {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) return;
+          const data = trimmed.slice(5).trim();
+          if (!data || data === '[DONE]') return;
+          try {
+            const event = JSON.parse(data);
+            const delta = event.choices?.[0]?.delta;
+            const content = delta?.content || delta?.reasoning_content;
+            if (typeof content === 'string' && content) controller.enqueue(encoder.encode(content));
+          } catch {
+            // Ignore non-message events in the upstream stream.
+          }
+        };
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -119,21 +133,11 @@ export async function POST(request) {
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed.startsWith('data:')) continue;
-              const data = trimmed.slice(5).trim();
-              if (!data || data === '[DONE]') continue;
-              try {
-                const event = JSON.parse(data);
-                const delta = event.choices?.[0]?.delta;
-                const content = delta?.content || delta?.reasoning_content;
-                if (typeof content === 'string' && content) controller.enqueue(encoder.encode(content));
-              } catch {
-                // Ignore incomplete or non-message events in the upstream stream.
-              }
-            }
+            for (const line of lines) emitLine(line);
           }
+          // Flush multibyte characters and a final SSE event without a trailing newline.
+          buffer += decoder.decode();
+          if (buffer.trim()) emitLine(buffer);
           controller.close();
         } catch (error) {
           if (error?.name !== 'AbortError') controller.error(error);
