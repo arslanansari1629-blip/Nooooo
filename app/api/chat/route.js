@@ -113,7 +113,8 @@ export async function POST(request) {
               if (!data || data === '[DONE]') continue;
               try {
                 const event = JSON.parse(data);
-                const content = event.choices?.[0]?.delta?.content;
+                const delta = event.choices?.[0]?.delta;
+                const content = delta?.content || delta?.reasoning_content;
                 if (typeof content === 'string' && content) controller.enqueue(encoder.encode(content));
               } catch {
                 // Ignore incomplete or non-message events in the upstream stream.
