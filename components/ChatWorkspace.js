@@ -9,12 +9,10 @@ import {
   Sun, Moon, Monitor, Command, CornerDownLeft, ShieldCheck, CircleUserRound,
 } from 'lucide-react';
 import Markdown from './Markdown';
+import { AUTO_MODEL, FALLBACK_MODELS, friendlyModelName, toModelInfo } from '@/lib/models';
 
-const MODELS = [
-  { id: 'meta/llama-3.3-70b-instruct', name: 'Nexora Pro', description: 'Deeper reasoning for complex work', badge: '70B', icon: BrainCircuit },
-  { id: 'meta/llama-3.1-8b-instruct', name: 'Nexora Swift', description: 'Quick answers for everyday tasks', badge: '8B', icon: Zap },
-];
-const DEFAULT_SETTINGS = { model: MODELS[0].id, style: 'balanced', theme: 'dark', sendWithEnter: true };
+const INITIAL_MODELS = [AUTO_MODEL, ...FALLBACK_MODELS.map(toModelInfo)];
+const DEFAULT_SETTINGS = { model: 'auto', style: 'balanced', theme: 'dark', sendWithEnter: true };
 const SUGGESTIONS = [
   { icon: Lightbulb, color: 'violet', eyebrow: 'BRAINSTORM', title: 'Turn a spark into something brilliant', prompt: 'Help me brainstorm five original ideas for a project that combines AI and everyday life. Make them practical but ambitious.', tag: 'Explore ideas' },
   { icon: Code2, color: 'blue', eyebrow: 'BUILD', title: 'Write, debug & understand code', prompt: 'Create a beautiful, responsive landing page for a fictional space travel company using HTML and CSS. Explain the key design choices.', tag: 'Start building' },
@@ -40,6 +38,12 @@ function TypingIndicator() {
   return <div className="typing-indicator" aria-label="Nexora is thinking"><i /><i /><i /></div>;
 }
 
+function ModelIcon({ model, size = 17 }) {
+  if (model?.id === 'auto') return <Sparkles size={size} />;
+  if (/8b|7b|mini|swift/i.test(model?.id || '')) return <Zap size={size} />;
+  return <BrainCircuit size={size} />;
+}
+
 function IconButton({ label, children, className = '', ...props }) {
   return <button className={`icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>;
 }
@@ -48,6 +52,8 @@ export default function ChatWorkspace() {
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [models, setModels] = useState(INITIAL_MODELS);
+  const [modelQuery, setModelQuery] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState([]);
@@ -73,7 +79,8 @@ export default function ChatWorkspace() {
 
   const active = conversations.find((chat) => chat.id === activeId) || null;
   const messages = active?.messages || [];
-  const selectedModel = MODELS.find((model) => model.id === settings.model) || MODELS[0];
+  const selectedModel = models.find((model) => model.id === settings.model) || AUTO_MODEL;
+  const filteredModels = models.filter((model) => `${model.name} ${model.provider} ${model.id}`.toLowerCase().includes(modelQuery.toLowerCase()));
 
   const notify = useCallback((message, type = 'success') => {
     clearTimeout(toastTimer.current);
@@ -91,6 +98,15 @@ export default function ChatWorkspace() {
       if (lastActive && savedChats.some((chat) => chat.id === lastActive)) setActiveId(lastActive);
     } catch { /* Start fresh if local storage is unavailable or malformed. */ }
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Catalog unavailable')))
+      .then((data) => {
+        if (Array.isArray(data.models) && data.models.length) setModels([AUTO_MODEL, ...data.models]);
+      })
+      .catch(() => { /* The built-in free model catalog remains available offline. */ });
   }, []);
 
   useEffect(() => {
@@ -186,6 +202,13 @@ export default function ChatWorkspace() {
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Something went wrong. Please try again.');
+      }
+      const respondingModel = response.headers.get('X-Nexora-Model');
+      if (respondingModel) {
+        updateConversation(conversationId, (chat) => ({
+          ...chat,
+          messages: chat.messages.map((message) => message.id === assistantId ? { ...message, model: respondingModel } : message),
+        }));
       }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -402,8 +425,12 @@ export default function ChatWorkspace() {
           </div>
           <div className="topbar-actions">
             <div className="model-wrap">
-              <button className="model-button" onClick={() => setModelOpen(!modelOpen)}><selectedModel.icon size={15} /><span>{selectedModel.name}</span><ChevronDown size={13} /></button>
-              {modelOpen && <div className="popover model-popover"><div className="popover-label">CHOOSE YOUR INTELLIGENCE</div>{MODELS.map((model) => <button key={model.id} className={settings.model === model.id ? 'selected' : ''} onClick={() => { setSettings((current) => ({ ...current, model: model.id })); setModelOpen(false); }}><model.icon size={18} /><span><strong>{model.name}<em>{model.badge}</em></strong><small>{model.description}</small></span>{settings.model === model.id && <Check size={15} />}</button>)}</div>}
+              <button className="model-button" onClick={() => setModelOpen(!modelOpen)}><ModelIcon model={selectedModel} size={15} /><span>{selectedModel.name}</span><ChevronDown size={13} /></button>
+              {modelOpen && <div className="popover model-popover">
+                <div className="popover-label">ALL FREE NVIDIA MODELS <span>{models.length - 1}</span></div>
+                <div className="model-search"><Search size={14} /><input autoFocus value={modelQuery} onChange={(event) => setModelQuery(event.target.value)} placeholder="Find a model…" /></div>
+                <div className="model-list">{filteredModels.map((model) => <button key={model.id} className={`model-option ${settings.model === model.id ? 'selected' : ''}`} onClick={() => { setSettings((current) => ({ ...current, model: model.id })); setModelOpen(false); setModelQuery(''); }}><ModelIcon model={model} size={18} /><span><strong>{model.name}<em>{model.badge}</em></strong><small>{model.description}</small></span>{settings.model === model.id && <Check size={15} />}</button>)}{!filteredModels.length && <div className="model-no-results">No models match “{modelQuery}”</div>}</div>
+              </div>}
             </div>
             {active && <IconButton label="Export conversation" onClick={exportChat}><Download size={17} /></IconButton>}
             <IconButton label="Settings" onClick={() => setSettingsOpen(true)}><Settings size={18} /></IconButton>
@@ -437,7 +464,7 @@ export default function ChatWorkspace() {
                   <article key={message.id} className={`message ${message.role} ${message.isError ? 'error' : ''}`}>
                     {message.role === 'assistant' && <div className="assistant-avatar"><NexoraMark size={27} /></div>}
                     <div className="message-body">
-                      <div className="message-meta"><strong>{message.role === 'user' ? 'You' : 'Nexora'}</strong>{message.role === 'assistant' && !message.isError && <span>{selectedModel.name}</span>}</div>
+                      <div className="message-meta"><strong>{message.role === 'user' ? 'You' : 'Nexora'}</strong>{message.role === 'assistant' && !message.isError && <span>{message.model ? friendlyModelName(message.model) : selectedModel.name}</span>}</div>
                       {message.role === 'user' ? (
                         <div className="user-bubble">
                           {message.attachments?.map((file) => <div className="message-attachment" key={file.name}><FileText size={15} /><span>{file.name}</span></div>)}
@@ -466,7 +493,7 @@ export default function ChatWorkspace() {
           <div className="composer-area">
             <div className={`composer ${listening ? 'is-listening' : ''}`}>
               {attachments.length > 0 && <div className="attachment-list">{attachments.map((file) => <span className="attachment-chip" key={file.id}><FileText size={14} /><span>{file.name}</span><button aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))}><X size={13} /></button></span>)}</div>}
-              <textarea ref={textareaRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => {
+              <textarea ref={textareaRef} rows={1} maxLength={8000} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey && settings.sendWithEnter && !event.nativeEvent.isComposing) { event.preventDefault(); sendMessage(); }
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); sendMessage(); }
               }} placeholder={listening ? 'Listening… speak naturally' : 'Ask Nexora anything…'} aria-label="Message Nexora" />
@@ -502,7 +529,7 @@ export default function ChatWorkspace() {
             <div className="settings-content">
               <section className="settings-section"><label>Appearance</label><div className="theme-options">{[{ id: 'light', name: 'Light', icon: Sun }, { id: 'dark', name: 'Dark', icon: Moon }, { id: 'system', name: 'System', icon: Monitor }].map(({ id, name, icon: Icon }) => <button className={settings.theme === id ? 'selected' : ''} key={id} onClick={() => setSettings((current) => ({ ...current, theme: id }))}><Icon size={17} /><span>{name}</span>{settings.theme === id && <Check size={14} />}</button>)}</div></section>
               <section className="settings-section"><label>Response style</label><div className="style-options">{['balanced', 'precise', 'creative'].map((style) => <button className={settings.style === style ? 'selected' : ''} key={style} onClick={() => setSettings((current) => ({ ...current, style }))}><strong>{style.charAt(0).toUpperCase() + style.slice(1)}</strong><span>{style === 'balanced' ? 'Thoughtful and clear' : style === 'precise' ? 'Short and to the point' : 'Imaginative and original'}</span></button>)}</div></section>
-              <section className="settings-section model-settings"><label>Default model</label>{MODELS.map((model) => <button key={model.id} className={settings.model === model.id ? 'selected' : ''} onClick={() => setSettings((current) => ({ ...current, model: model.id }))}><model.icon size={19} /><span><strong>{model.name}</strong><small>{model.description}</small></span><em>{model.badge}</em></button>)}</section>
+              <section className="settings-section model-settings"><label>Default model <span className="setting-count">{models.length - 1} free models</span></label><div className="settings-model-list">{models.map((model) => <button key={model.id} className={settings.model === model.id ? 'selected' : ''} onClick={() => setSettings((current) => ({ ...current, model: model.id }))}><ModelIcon model={model} size={19} /><span><strong>{model.name}</strong><small>{model.description}</small></span><em>{model.badge}</em></button>)}</div></section>
               <section className="settings-section setting-row"><div><label htmlFor="enter-setting">Enter to send</label><p>Press Enter to send and Shift + Enter for a new line.</p></div><button id="enter-setting" role="switch" aria-checked={settings.sendWithEnter} className={`switch ${settings.sendWithEnter ? 'on' : ''}`} onClick={() => setSettings((current) => ({ ...current, sendWithEnter: !current.sendWithEnter }))}><span /></button></section>
               <div className="privacy-note"><ShieldCheck size={19} /><div><strong>Your data belongs to you</strong><p>Conversations are saved only in this browser. Your NVIDIA key is securely stored on the server and never exposed.</p></div></div>
             </div>

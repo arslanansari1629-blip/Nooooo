@@ -8,7 +8,9 @@ A premium AI chat workspace built with Next.js and NVIDIA NIM.
 - Secure server-side NVIDIA API integration
 - Persistent local conversations with search, pinning, renaming, and deletion
 - Markdown, tables, and syntax-highlighted code with copy controls
-- Multiple models and response styles
+- Live NVIDIA free-model catalog with searchable model picker
+- Auto mode with failover across available models
+- Multiple response styles
 - Voice dictation and text/code file attachments
 - Light, dark, and system themes
 - Export conversations to Markdown

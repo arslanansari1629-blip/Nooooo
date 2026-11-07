@@ -123,11 +123,17 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 500; }
 .model-button { display: flex; align-items: center; gap: 7px; padding: 8px 10px; color: var(--text-2); border: 1px solid var(--border); border-radius: 8px; font-size: 11px; background: var(--surface); }
 .model-button > svg:first-child { color: var(--accent); }
 .model-button:hover { border-color: var(--accent-dark); }
-.model-popover { width: 295px; top: 42px; right: 0; padding: 7px; }
-.popover-label { padding: 8px 9px 10px; color: var(--muted); font-size: 9px; font-weight: 650; letter-spacing: .08em; }
-.model-popover > button { gap: 11px; padding: 11px 9px; }
-.model-popover > button > svg:first-child { color: var(--accent); }
-.model-popover > button > span { flex: 1; }
+.model-popover { width: 340px; top: 42px; right: 0; padding: 7px; }
+.popover-label { display: flex; justify-content: space-between; padding: 8px 9px 10px; color: var(--muted); font-size: 9px; font-weight: 650; letter-spacing: .08em; }
+.popover-label > span { color: var(--accent); }
+.model-search { display: flex; align-items: center; gap: 7px; margin: 0 3px 6px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); background: var(--surface); }
+.model-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 11px; }
+.model-search input::placeholder { color: var(--muted); }
+.model-list { max-height: 340px; overflow-y: auto; }
+.model-no-results { padding: 28px 12px; text-align: center; color: var(--muted); font-size: 11px; }
+.model-popover .model-option { gap: 11px; padding: 11px 9px; }
+.model-popover .model-option > svg:first-child { color: var(--accent); }
+.model-popover .model-option > span { flex: 1; }
 .model-popover strong { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); }
 .model-popover em { font-style: normal; font-size: 8px; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 2px 4px; }
 .model-popover small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
@@ -272,14 +278,16 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 500; }
 .theme-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .theme-options button { display: flex; align-items: center; gap: 7px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-2); font-size: 11px; }
 .theme-options button > svg:last-child { margin-left: auto; }
-.theme-options button.selected, .style-options button.selected, .model-settings > button.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.theme-options button.selected, .style-options button.selected, .model-settings .settings-model-list > button.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
 .style-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .style-options button { padding: 11px; border: 1px solid var(--border); border-radius: 8px; text-align: left; }
 .style-options strong { display: block; font-size: 11px; }
 .style-options span { display: block; color: var(--muted); font-size: 9px; margin-top: 4px; }
-.model-settings > button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 9px; margin-top: 7px; text-align: left; }
-.model-settings > button > svg { color: var(--accent); }
-.model-settings > button > span { flex: 1; }
+.setting-count { float: right; color: var(--muted); font-size: 9px; font-weight: 400; }
+.settings-model-list { max-height: 245px; overflow-y: auto; padding-right: 3px; }
+.model-settings .settings-model-list > button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 9px; margin-top: 7px; text-align: left; }
+.model-settings .settings-model-list > button > svg { color: var(--accent); }
+.model-settings .settings-model-list > button > span { flex: 1; }
 .model-settings strong { display: block; font-size: 11px; }
 .model-settings small { display: block; color: var(--muted); font-size: 9px; margin-top: 3px; }
 .model-settings em { font-style: normal; font-size: 9px; color: var(--muted); }
