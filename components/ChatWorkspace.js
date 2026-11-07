@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   ArrowUp, AtSign, BookOpen, Bot, Check, ChevronDown, Code2, Copy, Download,
   FileText, History, Lightbulb, Menu, MessageSquare, Mic, MoreHorizontal,
@@ -8,8 +9,9 @@ import {
   ThumbsUp, Trash2, X, Zap, BrainCircuit, PanelLeftClose, PanelLeftOpen,
   Sun, Moon, Monitor, Command, CornerDownLeft, ShieldCheck, CircleUserRound,
 } from 'lucide-react';
-import Markdown from './Markdown';
 import { AUTO_MODEL, FALLBACK_MODELS, friendlyModelName, toModelInfo } from '@/lib/models';
+
+const Markdown = dynamic(() => import('./Markdown'), { ssr: false });
 
 const INITIAL_MODELS = [AUTO_MODEL, ...FALLBACK_MODELS.map(toModelInfo)];
 const DEFAULT_SETTINGS = { model: 'auto', style: 'balanced', theme: 'dark', sendWithEnter: true };
@@ -212,15 +214,22 @@ export default function ChatWorkspace() {
       }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let lastPaint = 0;
+      const paintResponse = () => updateConversation(conversationId, (chat) => ({
+        ...chat,
+        messages: chat.messages.map((message) => message.id === assistantId ? { ...message, content: received } : message),
+      }));
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         received += decoder.decode(value, { stream: true });
-        updateConversation(conversationId, (chat) => ({
-          ...chat,
-          messages: chat.messages.map((message) => message.id === assistantId ? { ...message, content: received } : message),
-        }));
+        const now = Date.now();
+        if (now - lastPaint > 60) {
+          paintResponse();
+          lastPaint = now;
+        }
       }
+      paintResponse();
       if (!received.trim()) throw new Error('No response was received. Please try again.');
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -409,6 +418,7 @@ export default function ChatWorkspace() {
         </div>
         <div className="sidebar-bottom">
           <div className="engine-card"><div className="engine-icon"><Sparkles size={17} /></div><div><strong>Intelligence, amplified</strong><span>Powered by NVIDIA NIM</span></div><span className="status-dot" /></div>
+          <div className="developer-credit"><Code2 size={12} /><span>Developer</span><strong>Arslan /editz900s</strong></div>
           <div className="profile-wrap">
             <button className="profile-button" onClick={() => setProfileOpen(!profileOpen)}><span className="avatar">Y</span><span className="profile-copy"><strong>Your workspace</strong><small>Local & private</small></span><MoreHorizontal size={17} /></button>
             {profileOpen && <div className="popover profile-popover"><button onClick={exportAll}><Download size={15} />Export all data</button><button onClick={() => { setSettingsOpen(true); setProfileOpen(false); }}><Settings size={15} />Preferences</button><button className="danger" onClick={() => { if (window.confirm('Clear all conversations from this browser?')) { newChat(); setConversations([]); setProfileOpen(false); notify('Workspace cleared'); } }}><Trash2 size={15} />Clear workspace</button></div>}
@@ -454,6 +464,7 @@ export default function ChatWorkspace() {
                     </button>
                   ))}
                 </div>
+                <div className="welcome-credit"><span>Developed by</span><strong>Arslan /editz900s</strong></div>
               </div>
             </div>
           ) : (
@@ -533,7 +544,7 @@ export default function ChatWorkspace() {
               <section className="settings-section setting-row"><div><label htmlFor="enter-setting">Enter to send</label><p>Press Enter to send and Shift + Enter for a new line.</p></div><button id="enter-setting" role="switch" aria-checked={settings.sendWithEnter} className={`switch ${settings.sendWithEnter ? 'on' : ''}`} onClick={() => setSettings((current) => ({ ...current, sendWithEnter: !current.sendWithEnter }))}><span /></button></section>
               <div className="privacy-note"><ShieldCheck size={19} /><div><strong>Your data belongs to you</strong><p>Conversations are saved only in this browser. Your NVIDIA key is securely stored on the server and never exposed.</p></div></div>
             </div>
-            <div className="settings-footer"><span>Nexora v1.0</span><button onClick={() => setSettingsOpen(false)}>Done</button></div>
+            <div className="settings-footer"><span>Arslan /editz900s · Nexora v1.1</span><button onClick={() => setSettingsOpen(false)}>Done</button></div>
           </div>
         </div>
       )}

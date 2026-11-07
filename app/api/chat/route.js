@@ -22,7 +22,7 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid request.' }, { status: 400 });
   }
 
-  const messages = Array.isArray(body.messages) ? body.messages.slice(-30) : [];
+  const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
   const requestedModel = typeof body.model === 'string' ? body.model : 'auto';
   const style = STYLE_PROMPTS[body.style] ? body.style : 'balanced';
 
@@ -52,7 +52,7 @@ export async function POST(request) {
     ],
     temperature: style === 'creative' ? 0.85 : style === 'precise' ? 0.2 : 0.6,
     top_p: 0.9,
-    max_tokens: 4096,
+    max_tokens: 3072,
     stream: true,
   });
 
@@ -64,16 +64,24 @@ export async function POST(request) {
     // Auto mode gracefully tries the next free model if one is unavailable or rate limited.
     for (const model of candidates) {
       activeModel = model;
-      const response = await fetch(NVIDIA_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-        },
-        body: payload(model),
-        signal: request.signal,
-      });
+      let response;
+      try {
+        response = await fetch(NVIDIA_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.NVIDIA_API_KEY}`,
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
+          body: payload(model),
+          signal: AbortSignal.any([request.signal, AbortSignal.timeout(18000)]),
+        });
+      } catch (error) {
+        if (request.signal.aborted) throw error;
+        lastStatus = 504;
+        console.error(`NVIDIA model ${model} timed out`);
+        continue;
+      }
       if (response.ok && response.body) {
         upstream = response;
         break;
@@ -81,7 +89,7 @@ export async function POST(request) {
       lastStatus = response.status;
       const detail = await response.text();
       console.error(`NVIDIA model ${model} error:`, response.status, detail.slice(0, 300));
-      if (requestedModel !== 'auto' || ![400, 404, 409, 422, 429, 500, 502, 503].includes(response.status)) break;
+      if (requestedModel !== 'auto' || ![400, 404, 409, 422, 429, 500, 502, 503, 504].includes(response.status)) break;
     }
 
     if (!upstream) {
@@ -89,7 +97,9 @@ export async function POST(request) {
         ? 'The AI service credentials need attention.'
         : lastStatus === 429
           ? 'The free models are busy right now. Please try again in a moment.'
-          : 'No compatible free model is available right now. Please try another model.';
+          : lastStatus === 504
+            ? 'The model took too long to respond. Please try again or choose another model.'
+            : 'No compatible free model is available right now. Please try another model.';
       return Response.json({ error: message }, { status: lastStatus === 429 ? 429 : 502 });
     }
 

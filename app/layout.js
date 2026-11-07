@@ -6,6 +6,8 @@ export const metadata = {
   title: 'Nexora — Think beyond.',
   description: 'A beautifully intelligent AI workspace powered by NVIDIA. Create, learn, and solve with Nexora.',
   applicationName: 'Nexora',
+  authors: [{ name: 'Arslan /editz900s' }],
+  creator: 'Arslan /editz900s',
   icons: { icon: '/icon.svg' },
 };
 

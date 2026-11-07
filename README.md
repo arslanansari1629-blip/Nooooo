@@ -2,6 +2,8 @@
 
 A premium AI chat workspace built with Next.js and NVIDIA NIM.
 
+**Developer:** Arslan /editz900s
+
 ## Features
 
 - Real-time streaming AI responses

@@ -11,6 +11,6 @@ export async function GET() {
   const catalog = await getNvidiaCatalog();
   return Response.json(
     { models: catalog.map(toModelInfo), count: catalog.length },
-    { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } },
+    { headers: { 'Cache-Control': 'no-store' } },
   );
 }
