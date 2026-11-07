@@ -51,8 +51,12 @@ async function testModel(model) {
   }
 }
 
-export async function GET() {
-  const models = await getNvidiaCatalog();
+export async function GET(request) {
+  const allModels = await getNvidiaCatalog();
+  const url = new URL(request.url);
+  const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
+  const limit = Math.min(10, Math.max(1, Number(url.searchParams.get('limit')) || 8));
+  const models = allModels.slice(offset, offset + limit);
   const results = new Array(models.length);
   let cursor = 0;
 
@@ -67,11 +71,13 @@ export async function GET() {
   await Promise.all([worker(), worker()]);
 
   const summary = {
-    total: results.length,
+    catalogTotal: allModels.length,
+    tested: results.length,
     working: results.filter((item) => item.working).length,
     unavailable: results.filter((item) => item.status === 404).length,
     rateLimited: results.filter((item) => item.status === 429).length,
     otherErrors: results.filter((item) => !item.working && ![404, 429].includes(item.status)).length,
   };
-  return Response.json({ summary, results }, { headers: { 'Cache-Control': 'no-store' } });
+  const nextOffset = offset + limit < allModels.length ? offset + limit : null;
+  return Response.json({ summary, offset, nextOffset, results }, { headers: { 'Cache-Control': 'no-store' } });
 }
